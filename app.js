@@ -50,49 +50,69 @@ app.get('/systems/:systemId/:difficulty', (req, res) => {
     });
   });
 
+  // Bueno
   app.get('/quiz/:systemId', (req, res) => {
     const { systemId } = req.params;
     const { difficulty } = req.query; // Extracting the difficulty from query parameters
-  
-    // Base query
+
     let query = `
-      SELECT 
+    SELECT 
         q.id AS question_id, 
         q.question, 
         dl.level_name AS difficulty, 
-        JSON_ARRAYAGG(JSON_OBJECT('answer', a.answer, 'is_correct', a.is_correct)) AS answers 
-      FROM questions q
-      JOIN answers a ON q.id = a.question_id
-      JOIN difficulty_levels dl ON q.difficulty_id = dl.id
-      WHERE q.system_id = ?
-    `;
-  
-    // Parameters for the SQL query
+        JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'id', a.id,
+                'text', a.answer,
+                'isCorrect', CAST(a.is_correct AS UNSIGNED) = 1  -- Explicitly cast and compare to produce a Boolean 
+            )
+        ) AS answers 
+    FROM questions q
+    JOIN answers a ON q.id = a.question_id
+    JOIN difficulty_levels dl ON q.difficulty_id = dl.id
+    WHERE q.system_id = ?
+`;
+
     const queryParams = [systemId];
-  
-    // If a difficulty is specified, add a condition to the WHERE clause
+
     if (difficulty) {
-      query += ' AND dl.level_name = ?';
-      queryParams.push(difficulty);
+        query += ' AND dl.level_name = ?';
+        queryParams.push(difficulty);
     }
-  
-    // Complete the query
+
     query += ' GROUP BY q.id ORDER BY q.id;';
-  
+
     connection.query(query, queryParams, (error, results) => {
+        if (error) {
+            res.status(500).send('Server error');
+            console.error(error);
+            return;
+        }
+        res.json(results.map(row => ({
+            id: row.question_id,
+            text: row.question,
+            difficulty: row.difficulty,
+            answers: JSON.parse(row.answers)
+        })));
+    });
+});
+
+
+  
+
+  app.get('/systems', (req, res) => {
+    const query = 'SELECT id, name, model_name AS modelName, description FROM systems';
+    connection.query(query, (error, results) => {
       if (error) {
         res.status(500).send('Server error');
         console.error(error);
         return;
       }
-      res.json(results.map(row => ({
-        question_id: row.question_id,
-        question: row.question,
-        difficulty: row.difficulty,
-        answers: JSON.parse(row.answers)
-      })));
+      res.json(results);
     });
   });
+  
+  
   
 
 // Ruta para crear un nuevo sistema
