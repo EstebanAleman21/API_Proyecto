@@ -111,6 +111,39 @@ app.get('/systems/:systemId/:difficulty', (req, res) => {
       res.json(results);
     });
   });
+
+  app.post('/users/register', (req, res) => {
+    const { name, student_id, password } = req.body;
+
+    const query = 'INSERT INTO Users (name, student_id, password) VALUES (?, ?, ?)';
+    
+    connection.query(query, [name, student_id, password], (error, results) => {
+        if (error) {
+            console.error('Error inserting data into Users table:', error);
+            return res.status(500).send('Failed to register user');
+        }
+        res.status(201).send(`User registered with ID: ${results.insertId}`);
+    });
+});
+
+app.post('/users/login', (req, res) => {
+  const { student_id, password } = req.body;
+
+  const query = 'SELECT * FROM Users WHERE student_id = ? AND password = ?';
+  
+  connection.query(query, [student_id, password], (error, results) => {
+      if (error) {
+          console.error('Error querying Users table:', error);
+          return res.status(500).send('Login failed');
+      }
+      if (results.length > 0) {
+          res.send('Login successful');
+      } else {
+          res.status(401).send('Invalid credentials');
+      }
+  });
+});
+
   
   
   
