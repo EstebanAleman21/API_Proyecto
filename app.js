@@ -134,16 +134,81 @@ app.post('/users/login', (req, res) => {
   connection.query(query, [student_id, password], (error, results) => {
       if (error) {
           console.error('Error querying Users table:', error);
-          return res.status(500).send('Login failed');
+          return res.status(500).json({ error: 'Login failed due to server error' });
       }
       if (results.length > 0) {
-          res.send('Login successful');
+          // Assuming results[0] contains the user data you want to return
+          const user = {
+            id: results[0].user_id,
+            name: results[0].name,
+            studentID: results[0].student_id,
+            // Do not send back the password or any sensitive data
+          };
+          res.json({
+              message: 'Login successful',
+              user: user
+          });
       } else {
-          res.status(401).send('Invalid credentials');
+          res.status(401).json({ error: 'Invalid credentials' });
       }
   });
 });
 
+
+app.post('/quiz/results', (req, res) => {
+  const { userId, quizId, score, totalQuestions } = req.body;
+  console.log("Attempting to save results for user_id:", userId);
+  console.log("Received for saving results:", userId, quizId, score, totalQuestions);
+  const sql = 'INSERT INTO user_quiz_results (user_id, quiz_id, score, total_questions, date_taken) VALUES (?, ?, ?, ?, NOW())';
+  connection.query(sql, [userId, quizId, score, totalQuestions], (error, results) => {
+      if (error) {
+          console.error('Failed to insert quiz results:', error);
+          return res.status(500).json({ error: "Error saving results: " + error.message });
+      }
+      res.status(201).json({ message: 'Quiz result saved successfully', resultId: results.insertId });
+  });
+});
+
+
+function validateInput(userId, quizId, score, totalQuestions) {
+  // Placeholder for validation logic
+  return Number.isInteger(userId) && Number.isInteger(quizId) &&
+         Number.isInteger(score) && Number.isInteger(totalQuestions) &&
+         score >= 0 && totalQuestions > 0 && score <= totalQuestions;
+}
+
+
+app.get('/users/:userId', (req, res) => {
+  const userId = req.params.userId;
+
+  const query = `
+      SELECT u.name, u.student_id, q.quiz_name, qr.score, qr.total_questions
+      FROM Users u
+      LEFT JOIN QuizResults qr ON u.user_id = qr.user_id
+      LEFT JOIN Quizzes q ON qr.quiz_id = q.id
+      WHERE u.user_id = ?
+  `;
+
+  connection.query(query, [userId], (error, results) => {
+      if (error) {
+          console.error('Error fetching user profile:', error);
+          res.status(500).send({ message: 'Error fetching user profile', error });
+      } else {
+          const userProfile = {
+              userInfo: results.length ? {
+                  name: results[0].name,
+                  studentId: results[0].student_id
+              } : {},
+              quizResults: results.map(row => ({
+                  quizName: row.quiz_name,
+                  score: row.score,
+                  totalQuestions: row.total_questions
+              }))
+          };
+          res.send(userProfile);
+      }
+  });
+});
   
   
   
