@@ -169,6 +169,58 @@ app.post('/quiz/results', (req, res) => {
   });
 });
 
+app.get('/users/:userId/profile', (req, res) => {
+  const userId = req.params.userId;
+
+  // Query to fetch user information
+  const userInfoQuery = 'SELECT name, student_id FROM Users WHERE user_id = ?';
+  // Query to fetch the latest quiz result
+  const latestQuizResultQuery = `
+      SELECT score, total_questions, date_taken
+      FROM user_quiz_results
+      WHERE user_id = ?
+      ORDER BY date_taken DESC
+      LIMIT 1;
+  `;
+
+  connection.query(userInfoQuery, [userId], (error, userResults) => {
+      if (error) {
+          console.error('Error fetching user profile:', error);
+          return res.status(500).send({ message: 'Error fetching user profile', error });
+      }
+
+      if (userResults.length === 0) {
+          return res.status(404).send({ message: 'User not found' });
+      }
+
+      const userInfo = userResults[0];
+
+      connection.query(latestQuizResultQuery, [userId], (error, quizResults) => {
+          if (error) {
+              console.error('Error fetching latest quiz result:', error);
+              return res.status(500).send({ message: 'Error fetching latest quiz result', error });
+          }
+
+          const latestQuizResult = quizResults[0] || null;
+
+          const userProfile = {
+              userInfo: {
+                  name: userInfo.name,
+                  studentId: userInfo.student_id
+              },
+              latestQuizResult: latestQuizResult ? {
+                  score: latestQuizResult.score,
+                  totalQuestions: latestQuizResult.total_questions,
+                  dateTaken: latestQuizResult.date_taken
+              } : null
+          };
+
+          res.json(userProfile);
+      });
+  });
+});
+
+
 
 function validateInput(userId, quizId, score, totalQuestions) {
   // Placeholder for validation logic
