@@ -262,6 +262,100 @@ app.get('/users/:userId', (req, res) => {
   });
 });
   
+
+// Fetch all systems with their labels and drop zones
+app.get('/anatomy', (req, res) => {
+  const query = `
+    SELECT sys.system_id, sys.name, sys.image_name, 
+           lbl.label, dz.position_x, dz.position_y, dz.width, dz.height
+    FROM AnatomySystems sys
+    LEFT JOIN Labels lbl ON sys.system_id = lbl.system_id
+    LEFT JOIN DropZones dz ON lbl.label_id = dz.label_id;
+  `;
+
+  connection.query(query, (error, results) => {
+    if (error) {
+      console.error('Error fetching systems for quiz:', error);
+      return res.status(500).send({ error: 'Error fetching systems for quiz', details: error.message });
+    }
+    
+    console.log('Results:', results);
+
+    // If there are no results, return an empty array
+    if (results.length === 0) {
+      return res.json([]);
+    }
+
+    // Process results to group labels and drop zones under their respective systems
+    const systems = results.reduce((acc, row) => {
+      // If the system is not yet in the accumulator, add it
+      if (!acc[row.system_id]) {
+        acc[row.system_id] = {
+          system_id: row.system_id,
+          name: row.name,
+          image_name: row.image_name,
+          labels: [],
+          dropZones: []
+        };
+      }
+      
+      // Add label and drop zone information
+      if (row.label) {
+        acc[row.system_id].labels.push(row.label);
+        acc[row.system_id].dropZones.push({
+          label: row.label,
+          position_x: row.position_x,
+          position_y: row.position_y,
+          width: row.width,
+          height: row.height
+        });
+      }
+
+      return acc;
+    }, {});
+
+    // Convert systems to an array
+    const systemsArray = Object.values(systems);
+    res.json(systemsArray);
+  });
+});
+
+// Fetch specific system with labels and drop zones by system ID
+app.get('/quiz/systems/:systemId', (req, res) => {
+  const { systemId } = req.params;
+
+  const query = `
+    SELECT sys.name, sys.image_name, lbl.label, 
+           dz.position_x, dz.position_y, dz.width, dz.height
+    FROM AnatomySystems sys
+    JOIN Labels lbl ON sys.system_id = lbl.system_id
+    JOIN DropZones dz ON lbl.label_id = dz.label_id
+    WHERE sys.system_id = ?;
+  `;
+
+  connection.query(query, [systemId], (error, results) => {
+    if (error) {
+      console.error('Error fetching specific system for quiz:', error);
+      return res.status(500).send({ error: 'Error fetching specific system for quiz' });
+    }
+
+    // Process results to structure the JSON response
+    const systemInfo = results.length > 0 ? {
+      name: results[0].name,
+      image_name: results[0].image_name,
+      labels: results.map(row => row.label),
+      dropZones: results.map(row => ({
+        label: row.label,
+        position_x: row.position_x,
+        position_y: row.position_y,
+        width: row.width,
+        height: row.height
+      }))
+    } : {};
+
+    res.json(systemInfo);
+  });
+});
   
   
 
